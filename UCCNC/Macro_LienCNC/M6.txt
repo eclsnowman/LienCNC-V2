@@ -1,0 +1,131 @@
+// ================================================================================================
+// M6 manual tool change macro v1.0  (Edited by ECL 01-30-21)
+// ================================================================================================
+
+if (!exec.GetLED(308))                                                          // Mobile wp referenced
+{
+  exec.AddStatusmessage("The workpiece was not referenced.");
+  return;
+}
+
+int CurrTool = exec.Getcurrenttool();
+int NewTool = exec.Getnewtool();
+
+if (NewTool == CurrTool) return;
+
+bool wasCycleRunning = exec.GetLED(54);
+
+if (wasCycleRunning)
+{
+  exec.Stop();
+  while(exec.IsMoving()){}
+  exec.Code("");
+}
+
+if (NewTool == -1)                                                              // -1 -> there was no T word
+{
+  exec.AddStatusmessage("There was no T word for the M6.");
+  return;
+}
+
+string NewToolName = "T" + NewTool;
+
+double cpX = exec.GetXmachpos();
+double cpY = exec.GetYmachpos();
+double cpZ = exec.GetZmachpos();
+
+double cpwZ = exec.GetZpos();
+
+if (!GotoMachPos(tcpX, tcpY, tcpZ)) return;
+
+MessageBox.Show(exec.mainform, "Insert new tool " + NewToolName, "Change tool");
+if (exec.Ismacrostopped()) return;
+
+exec.Callbutton(801);                                                           // Tool probe
+exec.Callbutton(841);                                                           // Mobile probe
+exec.Callbutton(800);                                                           // Quick jump to probe screen
+
+if (!AS3.Getbuttonstate(851)) exec.Callbutton(851);                             // Zero probed axes
+
+exec.Callbutton(848);                                                           // Goto probe pos
+if (exec.Ismacrostopped()) return;
+
+exec.Callbutton(821);                                                           // Start probing
+while (!AS3.Getbuttonstate(821) && !exec.Ismacrostopped()) Thread.Sleep(10);
+while (AS3.Getbuttonstate(821) && !exec.Ismacrostopped()) Thread.Sleep(10);
+exec.Wait(500);
+if (exec.Ismacrostopped()) return;
+
+AS3.selectlayer(2);
+
+if (!GotoMachPos(cpX, cpY, GetMachFromWorkZ(cpwZ))) return;
+
+exec.Setcurrenttool(NewTool);
+
+if (wasCycleRunning) exec.Callbutton(128);                                      // Cycle start if it was started
+
+return;
+
+#Events
+
+const double tcpX = 738;  Change to your Custom Tool Change Position in the Machine Work Coordinates for X
+const double tcpY = 724.5;   Change to your Custom Tool Change Position in the Machine Work Coordinates for Y
+const double tcpZ = 128;  Change to your Custom Tool Change Position in the Machine Work Coordinates for Z
+
+bool GotoMachPos(double x, double y, double z)
+{
+  List<string> codelist = new List<string>();                                   //Create a new List of strings.
+
+  double limitPlus = AS3.Getfielddouble(42);                                    // Z axis softlimit +
+  bool limitValid = (AS3.Getfielddouble(41) != limitPlus);                      // Softlimit valid if limit+ <> limit-
+
+  double cZ = exec.GetZmachpos();
+  double safeZ = AS3.Getfielddouble(2734);                                      // SafeZ
+  double moveZ = cZ;
+
+  if (limitValid && (z > limitPlus))                                            // Check for Z overtravel
+  {
+    if (MessageBox.Show(exec.mainform, "Destination Z is higher than Z soft limit.\nAllow move on Z soft limit?", "Z height warning!", MessageBoxButtons.YesNo) == DialogResult.Yes)
+      z = limitPlus;                                                            // Set destination Z to limit+
+    else
+    {
+      exec.Callbutton(130);                                                     // Stop!
+      return false;
+    }
+  }
+
+  bool limitTraverseSpeed = AS3.Getbuttonstate(875);                            // Limit traverse speed checkbox
+  double traverseSpeedLimit = AS3.Getfielddouble(2737);                         // Traverse speed limit
+  string startStr = "";
+  string endStr = "";
+
+  if (moveZ < safeZ) moveZ = safeZ;
+  if (moveZ < z) moveZ = z;
+
+  if (limitTraverseSpeed)
+  {
+    startStr = "G01";
+    endStr = " F" + traverseSpeedLimit.ToString("F4");
+  }
+  else
+  {
+    startStr = "G00" + startStr;
+  }
+
+  if (cZ < moveZ)
+    codelist.Add(startStr + " G53 Z" + moveZ.ToString("F6") + endStr);
+  codelist.Add(startStr + " G53 X" + x.ToString("F6") + " Y" + y.ToString("F6") + endStr);
+  codelist.Add(startStr + " G53 Z" + z.ToString("F6") + endStr);
+
+  exec.Codelist(codelist);                                                      //Execute the List of g-codes.
+  while (exec.IsMoving());
+
+  return !exec.Ismacrostopped();
+}
+
+double GetMachFromWorkZ(double wz)
+{
+  double g92offset = AS3.Getfielddouble(502);
+  double tooloffset = AS3.Getfielddouble(169);
+  double workoffset = AS3.Getfielddouble(133 + 6 * (int)(exec.Getactualmodalcode(12) - 54) + 2);
+  return (wz + workoffset + g92offset + tooloffset);

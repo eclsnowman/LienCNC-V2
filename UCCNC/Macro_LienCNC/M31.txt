@@ -1,0 +1,72 @@
+//M31 probing macro
+
+double probeX = 200;
+double probeY = 300;
+double Zmin = -100;
+double FeedrateFast = 300;
+double FeedrateSlow = 100;
+double SafeZ = 100;
+double retractheight = 10;
+double retractforsecondmeasurement = 1;
+
+bool domoveXY = false; //Enable XY movement
+bool dodualcycle = true; //Do probing from 2 cycles, first with Fast and second with Slow feedrates
+
+if(!exec.GetLED(56)||!exec.GetLED(57)||!exec.GetLED(58)) // If machine was not homed then it is unsafe to move in machine coordinates, stop here...
+{
+  MessageBox.Show("The machine was not yet homed, home the machine before probing!");
+  exec.Stop();
+  return;
+}
+
+while(exec.IsMoving()){}
+
+double Xoriginalpos = exec.GetXmachpos(); // Get the current machine coordinates
+double Yoriginalpos = exec.GetYmachpos(); // Get the current machine coordinates
+
+if(domoveXY) // Make XY movement only if enabled
+{
+  exec.Code("G00 G53 Z" + SafeZ); // Move Z up first
+  while(exec.IsMoving()){}
+
+  exec.Code("G00 G53 X" + probeX +" Y" + probeY); // Move to the probe sensor position in XY
+  while(exec.IsMoving()){}
+}
+
+if(dodualcycle)
+{
+  exec.Code("G31 Z" + Zmin + "F" + FeedrateFast); // Do the Z probing with Fast feedrate first
+  while(exec.IsMoving()){}
+
+  exec.Code("G91 G0 Z" + retractforsecondmeasurement);
+  exec.Code("G90"); 
+}
+
+while(exec.IsMoving()){}
+exec.Code("G31 Z" + Zmin + "F" + FeedrateSlow); // Do the Z probing again with Slow Feedrate to get a more accurate reading
+while(exec.IsMoving()){}
+
+if(!exec.Ismacrostopped()) // If tool change was not interrupted with a stop only then validate new tool number
+{
+ exec.Code("G44 H1"); // Load tool offset one, note the tool lenght is defined in the tools menu
+ while(exec.IsMoving()){}
+ exec.Wait(200);
+
+ double Zup = exec.GetZmachpos() + retractheight;
+
+ if(Zup > SafeZ)
+ {
+   Zup = SafeZ;
+ }
+ 
+ exec.Code("G00 G53 Z" + Zup); // Move 10mm above probe plate
+ while(exec.IsMoving()){}
+
+if(domoveXY) // Make XY movement back to start position only if XY movement is enabled
+{
+  exec.Code("G00 G53 X" + Xoriginalpos +" Y" + Yoriginalpos); // Move back to the original XY position
+  while(exec.IsMoving()){}
+}
+
+}
+

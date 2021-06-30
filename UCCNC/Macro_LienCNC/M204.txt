@@ -1,0 +1,55 @@
+// Go to Zero with safeZ
+
+if (exec.GetXpos() == 0 && exec.GetYpos() == 0 && exec.GetZpos() == 0 && exec.GetApos() == 0 && exec.GetBpos() == 0 && exec.GetCpos() == 0)
+{
+  return; // if all position DROs are already zero then return
+}
+
+exec.Getactualoffset();
+
+double safeZ = exec.mainform.UCsetup.UCset.Generalsettings.SafeZ;
+double Softlimitsrelative = exec.mainform.UCsetup.UCset.Axis[2].UC100axis.SoftLimitP - exec.ofc.Wzval - exec.ofc.TOZval - exec.ofc.G92zval;
+
+if (exec.mainform.UCsetup.UCset.Generalsettings.Enablesoftlimits)
+{
+  if (safeZ > Softlimitsrelative)
+  {
+    safeZ = Softlimitsrelative;
+    if (exec.GetXpos() != 0 || exec.GetYpos() != 0 || exec.GetApos() != 0 || exec.GetBpos() != 0 || exec.GetCpos() != 0)
+    {
+      DialogResult result = MessageBox.Show(exec.mainform.MSG.Message[45], "Confirmation", MessageBoxButtons.YesNo);
+      if (result == DialogResult.No)
+      {
+        return;
+      }
+    }
+  }
+}
+
+while (exec.IsMoving()) { }
+int originaldistancemode = exec.actualdistmode; // remember the distance mode
+int originalmodalmode = exec.actualmodal; // remember the modal mode
+exec.Code("G90"); // Set system to absolute distance mode
+exec.Wait(100);
+
+if (exec.GetXpos() != 0 || exec.GetYpos() != 0 || exec.GetApos() != 0 || exec.GetBpos() != 0 || exec.GetCpos() != 0)
+{
+  if ((exec.GetZpos() * exec.GetZscale()) < safeZ) //Move Z only if the Z coordinate is lower than the safeZ
+  {
+    exec.Code("G00 Z" + (safeZ / exec.GetZscale())); // Move Z up to safeZ defined by user, above the zero plane
+    while (exec.IsMoving()) { }
+  }
+  exec.Code("G00 X0 Y0 A0 B0 C0"); // Move XYABC to Zero
+  while (exec.IsMoving()) { }
+
+  exec.Code("G00 Z0"); // Move Z to 0
+  while (exec.IsMoving()) { }
+}
+else
+{
+ exec.Code("G00 Z0"); // Move Z to 0
+ while (exec.IsMoving()) { }
+}
+
+exec.Code("G" + originaldistancemode); // Set system back to the original distance mode
+exec.Code("G" + originalmodalmode); // Set system back to the original modal mode

@@ -1,0 +1,28 @@
+// Go to Park position 2 macro
+
+double parkZ = 100;
+double parkX = 50;
+double parkY = 50;
+
+if(!exec.GetLED(56)||!exec.GetLED(57)||!exec.GetLED(58)) // If machine was not homed then it is unsafe to move in machine coordinates, stop here...
+{
+  MessageBox.Show("The machine was not yet homed, home the machine before run to parking position!");
+  exec.Stop();
+  return;
+}
+
+int originalmodalmode = exec.actualmodal; // remember the modal mode
+
+while(exec.IsMoving()){}
+
+exec.Code("G00 G53 Z"+ parkZ); // Move Z up first to park2 Z position
+while(exec.IsMoving()){}
+
+exec.Code("G00 G53 X" + parkX +" Y" + parkY); // Move to XY park2 position
+while(exec.IsMoving()){}
+
+exec.Code("G" + originalmodalmode); // Set system back to the original distance mode
+
+
+
+

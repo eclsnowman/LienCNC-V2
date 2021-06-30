@@ -1,0 +1,8 @@
+//This macro is part of the UCCNC kernel, so this macro can't be used as a text macro.
+//Anything written to this macro will be ignored.
+
+
+
+
+
+

@@ -1,0 +1,24 @@
+//Z touch with retract for plasma zero height measurement
+
+double Zmin = -200;
+double Feedrate = 200;
+double retractheight = 3.50;
+
+int originaldistancemode = exec.actualdistmode; // remember the distance mode
+int originalmodalmode = exec.actualmodal; // remember the modal mode
+exec.Code("G90"); // Set system to absolute distance mode
+
+while(exec.IsMoving()){}
+exec.Code("G31 Z" + Zmin + " F" + Feedrate); // Move to the probe sensor position in XY
+while(exec.IsMoving()){}
+exec.Callbutton(102); // zero Z axis
+
+if(!exec.Ismacrostopped()) // If probe action was not interrupted with a stop only then go on...
+{
+ exec.Code("G01 Z" + retractheight); // Move above probe plate
+ while(exec.IsMoving()){}
+ exec.Callbutton(102); // zero Z axis
+}
+
+exec.Code("G" + originaldistancemode); // Set system back to the original distance mode
+exec.Code("G" + originalmodalmode); // Set system back to the original distance mode
